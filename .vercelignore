@@ -1,0 +1,8 @@
+# Deploy only the rendered report — keep the data store and build tooling private
+feeds.db
+*.py
+*.j2
+*.md
+*.txt
+report.seed.example.json
+.claude

@@ -57,7 +57,7 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); background-image: var(--bg-tint); color: var(--text); font-family: var(--font-sans); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+  .wrap { width: 100%; margin: 0 auto; padding: 0 clamp(20px, 2.5vw, 40px); }
   .mono { font-family: var(--font-mono); }
   a { color: var(--accent-ink); }
   h1,h2,h3 { margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
@@ -68,7 +68,11 @@
   header.masthead h1 { font-size: clamp(1.7rem, 3.6vw, 2.4rem); font-weight: 800; line-height: 1.05; }
   .provenance { font-family: var(--font-mono); font-size: .72rem; color: var(--text-faint); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 5px 16px; }
   .tallies { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
-  .tally { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 7px 12px; box-shadow: var(--shadow); }
+  .tally { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 7px 12px; box-shadow: var(--shadow); font: inherit; color: inherit; cursor: pointer; transition: opacity .12s, border-color .12s; }
+  .tally:hover { border-color: var(--border-strong); }
+  .tally:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tally.on { border-color: var(--accent); box-shadow: var(--shadow), inset 0 0 0 1px var(--accent); }
+  .tally.off { opacity: .4; }
   .tally .dot { width: 10px; height: 10px; border-radius: 50%; }
   .tally .n { font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
   .tally .lbl { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
@@ -161,12 +165,12 @@
     <div class="provenance">
       <span>◷ Generated {{ generated_at }}{% if window_end %} · window to {{ window_end }}{% endif %}</span>
       <span>◈ Feed data: {{ feed_sources | default('USGS · GDACS') }} · SQLite store</span>
-      <span>❖ Click any event for the ground-reporting articles</span>
+      <span>❖ Click an event for its articles · click a severity tally to filter</span>
     </div>
     <div class="tallies">
-      {% if severe_n %}<span class="tally"><span class="dot" style="background:var(--sev-severe)"></span><span class="n">{{ severe_n }}</span><span class="lbl">Severe</span></span>{% endif %}
-      {% if serious_n %}<span class="tally"><span class="dot" style="background:var(--sev-serious)"></span><span class="n">{{ serious_n }}</span><span class="lbl">Serious</span></span>{% endif %}
-      {% if moderate_n %}<span class="tally"><span class="dot" style="background:var(--sev-moderate)"></span><span class="n">{{ moderate_n }}</span><span class="lbl">Moderate</span></span>{% endif %}
+      {% if severe_n %}<button type="button" class="tally" data-band="severe" aria-pressed="false"><span class="dot" style="background:var(--sev-severe)"></span><span class="n">{{ severe_n }}</span><span class="lbl">Severe</span></button>{% endif %}
+      {% if serious_n %}<button type="button" class="tally" data-band="serious" aria-pressed="false"><span class="dot" style="background:var(--sev-serious)"></span><span class="n">{{ serious_n }}</span><span class="lbl">Serious</span></button>{% endif %}
+      {% if moderate_n %}<button type="button" class="tally" data-band="moderate" aria-pressed="false"><span class="dot" style="background:var(--sev-moderate)"></span><span class="n">{{ moderate_n }}</span><span class="lbl">Moderate</span></button>{% endif %}
     </div>
   </div>
 </header>
@@ -223,12 +227,35 @@
   const el = (t, a) => { const n = document.createElementNS(NS, t); for (const k in a) n.setAttribute(k, a[k]); return n; };
   const esc = s => (s == null ? "" : String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"));
 
+  /* ---- fit-to-bounds: zoom the viewBox to the region that actually has events ---- */
+  const VIEW = (function () {
+    const pts = EVENTS.filter(e => e.lat != null && e.lon != null);
+    if (!pts.length) return { x: 0, y: 0, w: W, h: H };
+    const xs = pts.map(e => px(e.lon)), ys = pts.map(e => py(e.lat));
+    const pad = 24; // map units (~12°) of breathing room around the outermost markers
+    const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad;
+    const y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+    let w = Math.max(x1 - x0, (y1 - y0) * 2, 200); // keep the pane's 2:1 aspect; never tighter than ~100°
+    if (w >= W) return { x: 0, y: 0, w: W, h: H };
+    const h = w / 2;
+    const x = Math.max(0, Math.min(W - w, (x0 + x1 - w) / 2));
+    const y = Math.max(0, Math.min(H - h, (y0 + y1 - h) / 2));
+    return { x, y, w, h };
+  })();
+  const S = VIEW.w / W; // shrink drawn sizes by the zoom factor so they stay constant on screen
+  (function () {
+    const svg = document.querySelector(".mapwrap svg");
+    svg.setAttribute("viewBox", `${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`);
+    const land = svg.querySelector(".land");
+    if (land) land.style.strokeWidth = 0.4 * S;
+  })();
+
   /* ---- graticule ---- */
   (function () {
     const g = document.getElementById("graticule");
-    for (let lon = -150; lon <= 150; lon += 30) g.appendChild(el("line", { x1: px(lon), y1: 0, x2: px(lon), y2: H, stroke: "rgba(126,148,168,0.09)", "stroke-width": 1 }));
-    for (let lat = -60; lat <= 60; lat += 30) g.appendChild(el("line", { x1: 0, y1: py(lat), x2: W, y2: py(lat), stroke: "rgba(126,148,168,0.09)", "stroke-width": 1 }));
-    g.appendChild(el("line", { x1: 0, y1: py(0), x2: W, y2: py(0), stroke: "rgba(126,148,168,0.20)", "stroke-width": 1, "stroke-dasharray": "2 5" }));
+    for (let lon = -150; lon <= 150; lon += 30) g.appendChild(el("line", { x1: px(lon), y1: 0, x2: px(lon), y2: H, stroke: "rgba(126,148,168,0.09)", "stroke-width": S }));
+    for (let lat = -60; lat <= 60; lat += 30) g.appendChild(el("line", { x1: 0, y1: py(lat), x2: W, y2: py(lat), stroke: "rgba(126,148,168,0.09)", "stroke-width": S }));
+    g.appendChild(el("line", { x1: 0, y1: py(0), x2: W, y2: py(0), stroke: "rgba(126,148,168,0.20)", "stroke-width": S, "stroke-dasharray": `${2 * S} ${5 * S}` }));
   })();
 
   /* ---- markers ---- */
@@ -237,18 +264,18 @@
     const layer = document.getElementById("markers");
     EVENTS.forEach((e, i) => {
       if (e.lat == null || e.lon == null) return;
-      const x = px(e.lon), y = py(e.lat), r = RAD[e.band] || 4, col = COLORS[e.band] || "#8896a5";
-      const g = el("g", { class: "mk-group", tabindex: "0", role: "button" });
+      const x = px(e.lon), y = py(e.lat), r = (RAD[e.band] || 4) * S, col = COLORS[e.band] || "#8896a5";
+      const g = el("g", { class: "mk-group", tabindex: "0", role: "button", "data-band": e.band });
       g.setAttribute("aria-label", `${e.title} — open reports`);
       if (e.band === "severe" || e.band === "serious") {
-        const ring = el("circle", { cx: x, cy: y, r: r, fill: "none", stroke: col, "stroke-width": 1.2, opacity: .85 });
+        const ring = el("circle", { cx: x, cy: y, r: r, fill: "none", stroke: col, "stroke-width": 1.2 * S, opacity: .85 });
         ring.style.transformOrigin = `${x}px ${y}px`;
         ring.style.animation = `ripple 2.8s ease-out ${(i % 4) * 0.5}s infinite`;
         g.appendChild(ring);
       }
-      g.appendChild(el("circle", { cx: x, cy: y, r: r + 3, fill: col, opacity: .15 }));
-      g.appendChild(el("circle", { class: "mk-core", cx: x, cy: y, r: r, fill: col, "fill-opacity": .3, stroke: col, "stroke-width": 1.4 }));
-      g.appendChild(el("circle", { cx: x, cy: y, r: 1.8, fill: col }));
+      g.appendChild(el("circle", { cx: x, cy: y, r: r + 3 * S, fill: col, opacity: .15 }));
+      g.appendChild(el("circle", { class: "mk-core", cx: x, cy: y, r: r, fill: col, "fill-opacity": .3, stroke: col, "stroke-width": 1.4 * S }));
+      g.appendChild(el("circle", { cx: x, cy: y, r: 1.8 * S, fill: col }));
       const tip = el("title", {}); tip.textContent = e.title; g.appendChild(tip);
       const open = () => openModal(e.id);
       g.addEventListener("click", open);
@@ -268,6 +295,7 @@
       b.className = `evcard ${e.band}`;
       b.type = "button";
       b.setAttribute("data-id", e.id);
+      b.setAttribute("data-band", e.band);
       const impacts = (e.impact || []).map(s =>
         `<span class="stat ${(s.label||'').toLowerCase()}"><span class="sv">${esc(s.value)}</span><span class="sl">${esc(s.label)}</span></span>`).join("");
       const nArt = (e.articles || []).length;
@@ -283,6 +311,29 @@
       b.addEventListener("click", () => openModal(e.id));
       wrap.appendChild(b);
     });
+  })();
+
+  /* ---- severity filter: tally chips toggle which bands are shown ---- */
+  (function () {
+    const chips = Array.from(document.querySelectorAll(".tally[data-band]"));
+    if (!chips.length) return;
+    const active = new Set();
+    function apply() {
+      const all = active.size === 0;
+      chips.forEach(c => {
+        const on = !all && active.has(c.dataset.band);
+        c.classList.toggle("on", on);
+        c.classList.toggle("off", !all && !on);
+        c.setAttribute("aria-pressed", String(on));
+      });
+      document.querySelectorAll(".evcard[data-band], .mk-group[data-band]").forEach(n => {
+        n.style.display = (all || active.has(n.dataset.band)) ? "" : "none";
+      });
+    }
+    chips.forEach(c => c.addEventListener("click", () => {
+      active.has(c.dataset.band) ? active.delete(c.dataset.band) : active.add(c.dataset.band);
+      apply();
+    }));
   })();
 
   /* ---- modal ---- */

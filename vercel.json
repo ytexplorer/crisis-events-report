@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/events.html" }
+  ],
+  "headers": [
+    {
+      "source": "/events.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
+  ]
+}

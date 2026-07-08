@@ -247,8 +247,13 @@ def build_context(conn: sqlite3.Connection) -> dict:
             "feed_link": feed_link,
         })
     n = len(events)
-    gen_date = (latest or datetime.now(timezone.utc).isoformat())[:10]
-    win = (latest[11:16] + " UTC") if len(latest) >= 16 else None
+    tz8 = timezone(timedelta(hours=8))
+    try:
+        local = datetime.strptime(latest[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).astimezone(tz8)
+    except ValueError:
+        local = datetime.now(tz8)
+    gen_date = local.strftime("%Y-%m-%d")
+    win = (local.strftime("%H:%M") + " GMT+8") if len(latest) >= 16 else None
     return {
         "title": f"{_SMALL.get(n, str(n))} event{'s' if n != 1 else ''} under watch",
         "generated_at": gen_date,
