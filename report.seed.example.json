@@ -1,0 +1,163 @@
+{
+  "run_at": "2026-07-08T03:14:19Z",
+  "counts": { "new": 5, "escalated": 0, "cleared": 0 },
+  "events": [
+    {
+      "id": "gdacs-TC-1001279",
+      "hazard": "Tropical Cyclone",
+      "place": "Guam, Northern Mariana Islands, Japan, Taiwan, China",
+      "lat": 16.9, "lon": 134.1,
+      "source_url": "https://www.gdacs.org/report.aspx?eventid=1001279&episodeid=29&eventtype=TC",
+      "observed_at": "2026-07-08T03:14:19Z",
+      "event_time": "2026-07-08T03:05:04Z",
+      "signal": { "mag": null, "alert": "Red", "sig": null, "band": "severe" },
+      "band": "severe", "band_label": "Severe", "hazard_label": "TROPICAL CYCLONE",
+      "alert_label": "GDACS alert · RED",
+      "title": "Super Typhoon Bavi — Guam & the Northern Mariana Islands, tracking toward Taiwan, Japan & China",
+      "feed_cells": [
+        { "k": "Signal", "v": "Alert RED (Cat 5)" },
+        { "k": "Position", "v": "16.9, 134.1" },
+        { "k": "Feed time", "v": "08-07 03:05Z" },
+        { "k": "Event ID", "v": "gdacs-TC-1001279" }
+      ],
+      "ground": [
+        { "lead": "Direct hit on Rota.", "text": "Bavi's eye passed directly over Rota (Northern Marianas, ~40 mi NE of Guam) at peak intensity — roughly <b>180 mph (290 km/h)</b> sustained winds, central pressure ~910 mb." },
+        { "lead": "Islands battered.", "text": "Severe power outages across Guam and Saipan; roads flooded and storm debris left strewn through streets." },
+        { "lead": "A record-setter.", "text": "Bavi is the third Category-5 storm globally in 2026." }
+      ],
+      "forecast": { "label": "Forecast track", "text": "Expected to weaken as it bends west-northwest — over SW Japan's Sakishima Islands (Fri night), near northern Taiwan incl. Taipei (Sat), then eastern China near Shanghai (Sat night) as a tropical storm, driving further heavy rain into an already-flooded region." },
+      "impact": [ { "label": "Deaths", "value": "None reported" }, { "label": "Peak winds", "value": "~180 mph" }, { "label": "Power", "value": "Widespread outages" } ],
+      "articles": [
+        { "source": "NPR", "url": "https://www.npr.org/2026/07/05/g-s1-132052/guam-pacific-islands-brace-super-typhoon-bavi", "title": "Super Typhoon Bavi brings destruction to Guam and surrounding Pacific islands", "published": "2026-07-05" },
+        { "source": "Yale Climate Connections", "url": "https://yaleclimateconnections.org/2026/07/cat-5-super-typhoon-bavi-pounds-the-u-s-northern-mariana-islands-and-guam/", "title": "Cat 5 Super Typhoon Bavi pounds the U.S. Northern Mariana Islands and Guam", "published": "2026-07-06" },
+        { "source": "weather.com", "url": "https://weather.com/2026/07/07/storms/hurricane/super-typhoon-bavi-northern-marianas-guam-taiwan-china-forecast", "title": "Super Typhoon Bavi eyes Taiwan, China after hammering Guam", "published": "2026-07-07" },
+        { "source": "FOX Weather", "url": "https://www.foxweather.com/weather-news/super-typhoon-bavi-mariana-islands-guam-life-threatening-conditions", "title": "Life-threatening Super Typhoon Bavi barrels towards Taiwan", "published": "2026-07-07" },
+        { "source": "Bloomberg", "url": "https://www.bloomberg.com/news/articles/2026-07-07/super-typhoon-bavi-set-to-bring-more-heavy-rain-to-china-this-week", "title": "Super Typhoon Bavi Set to Bring More Heavy Rain to China This Week", "published": "2026-07-07" }
+      ]
+    },
+    {
+      "id": "gdacs-FL-1103933",
+      "hazard": "Flood",
+      "place": "China",
+      "lat": 27.1176, "lon": 111.0272,
+      "source_url": "https://www.gdacs.org/report.aspx?eventid=1103933&episodeid=17&eventtype=FL",
+      "observed_at": "2026-07-08T03:14:19Z",
+      "event_time": "2026-07-07T07:01:35Z",
+      "signal": { "mag": null, "alert": "Orange", "sig": null, "band": "serious" },
+      "band": "serious", "band_label": "Serious", "hazard_label": "FLOOD",
+      "alert_label": "GDACS alert · ORANGE",
+      "title": "Deadly flooding across southern China — Hunan under continued-rain watch",
+      "feed_cells": [
+        { "k": "Signal", "v": "Alert ORANGE" },
+        { "k": "Position", "v": "27.1, 111.0 (Hunan)" },
+        { "k": "Feed time", "v": "07-07 07:01Z" },
+        { "k": "Event ID", "v": "gdacs-FL-1103933" }
+      ],
+      "ground": [
+        { "lead": "At least 15 dead", "text": "across Hubei and Guangxi, with thousands displaced, after storms from Tropical Storm Maysak." },
+        { "lead": "~48,000 evacuated", "text": "(of ~55,000 affected) as of late Mon, 7 Jul." },
+        { "lead": "Reservoirs breached near Nanning", "text": "(Guangxi): the Liulan and Yunbiao reservoirs overtopped and breached; residents call it the worst flooding in about two decades." },
+        { "lead": "Top-level response.", "text": "Nanning raised its flood-control emergency to the highest level; Xi Jinping called for \"all-out\" rescue operations." }
+      ],
+      "forecast": { "label": "Why Hunan is flagged", "text": "The GDACS footprint sits in Hunan, where forecasters warn of continued heavy rain alongside Guangxi and Guizhou — three provinces home to 150M+ people. Heaviest confirmed impact so far is in Guangxi (Nanning); Hunan's situation is developing." },
+      "impact": [ { "label": "Deaths", "value": "≥15" }, { "label": "Evacuated", "value": "~48,000" }, { "label": "Affected", "value": "~55,000" } ],
+      "articles": [
+        { "source": "Euronews", "url": "https://www.euronews.com/2026/07/07/death-toll-from-china-storms-and-floods-rises-to-15-state-media-says", "title": "Death toll from China storms and floods rises to 15", "published": "2026-07-07" },
+        { "source": "SCMP", "url": "https://www.scmp.com/news/china/politics/article/3359586/china-dam-collapse-hundreds-evacuated-after-typhoon-rains-breach-guangxi-reservoir", "title": "China dam collapses, cross-border railway halted as Typhoon Maysak slams Guangxi", "published": "2026-07-07" },
+        { "source": "The Watchers", "url": "https://watchers.news/2026/07/06/reservoir-breaches-after-extreme-rainfall-cause-severe-flooding-in-nanning-china/", "title": "Reservoir breaches after extreme rainfall cause severe flooding in Nanning", "published": "2026-07-06" },
+        { "source": "Bloomberg", "url": "https://www.bloomberg.com/news/articles/2026-07-06/floods-in-southern-china-s-guangxi-kill-two-thousands-evacuated", "title": "China Reports Dead After Rain and Storms Batter Provinces", "published": "2026-07-06" }
+      ]
+    },
+    {
+      "id": "gdacs-WF-1029331",
+      "hazard": "Wildfire",
+      "place": "France",
+      "lat": 42.6724, "lon": 2.5678,
+      "source_url": "https://www.gdacs.org/report.aspx?eventid=1029331&episodeid=6&eventtype=WF",
+      "observed_at": "2026-07-08T03:14:19Z",
+      "event_time": "2026-07-08T03:03:10Z",
+      "signal": { "mag": null, "alert": "Orange", "sig": null, "band": "serious" },
+      "band": "serious", "band_label": "Serious", "hazard_label": "WILDFIRE",
+      "alert_label": "GDACS alert · ORANGE",
+      "title": "Trévillach wildfire, Pyrénées-Orientales — France's most destructive blaze of the year",
+      "feed_cells": [
+        { "k": "Signal", "v": "Alert ORANGE" },
+        { "k": "Position", "v": "42.67, 2.57" },
+        { "k": "Feed time", "v": "08-07 03:03Z" },
+        { "k": "Event ID", "v": "gdacs-WF-1029331" }
+      ],
+      "ground": [
+        { "lead": "~5,000 hectares burned", "text": "since the fire broke out the evening of 4 Jul near Trévillach, ~35 km from Perpignan — a perimeter of roughly 40 km spanning dozens of communes." },
+        { "lead": "~12,000 people evacuated", "text": "(10,000, then a further 2,000 overnight); two people reported critically injured." },
+        { "lead": "800+ firefighters", "text": "engaged, with around 20 wildfires burning across France." },
+        { "lead": "Status (7 Jul):", "text": "no longer spreading to new areas and stabilized in places, but not yet fully contained — flanks still active." }
+      ],
+      "impact": [ { "label": "Injured", "value": "2 critical" }, { "label": "Evacuated", "value": "~12,000" }, { "label": "Burned", "value": "~5,000 ha" } ],
+      "articles": [
+        { "source": "The Connexion", "url": "https://www.connexionfrance.com/news/france-wildfire-update-blazes-continue-across-south-as-red-alerts-raised/800611", "title": "France wildfire update: Pyrénées-Orientales fire still burning as red alerts raised", "published": "2026-07-07" },
+        { "source": "Demócrata", "url": "https://www.democrata.es/en/international/around-4-500-hectares-destroyed-10-000-evacuated-and-two-critical-injuries-in-the-eastern-pyrenees-fire/amp/", "title": "~4,500 hectares destroyed, 10,000 evacuated and two critical injuries in the Eastern Pyrenees fire", "published": "2026-07-06" },
+        { "source": "Tasnim", "url": "https://www.tasnimnews.ir/en/news/2026/07/06/3640864/thousands-evacuated-as-wildfire-burns-over-11-000-acres-in-southern-france/amp", "title": "Thousands Evacuated As Wildfire Burns over 11,000 Acres in Southern France", "published": "2026-07-06" },
+        { "source": "Qazinform", "url": "https://qazinform.com/news/wildfire-continues-to-spread-in-frances-southern-pyrenees-cf2b18/amp", "title": "Wildfire continues to spread in France's Pyrénées-Orientales", "published": "2026-07-06" }
+      ]
+    },
+    {
+      "id": "usgs:us6000talg",
+      "hazard": "Earthquake",
+      "place": "162 km NNW of Tobelo, Indonesia",
+      "lat": 3.1239, "lon": 127.5573,
+      "source_url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000talg",
+      "observed_at": "2026-07-08T03:14:19Z",
+      "event_time": "2026-07-07T07:16:26Z",
+      "signal": { "mag": 5.4, "alert": "green", "sig": 449, "band": "moderate" },
+      "band": "moderate", "band_label": "Moderate", "hazard_label": "EARTHQUAKE",
+      "alert_label": "USGS alert · GREEN",
+      "title": "M 5.4 earthquake — Maluku Sea, 162 km NNW of Tobelo, Indonesia",
+      "feed_cells": [
+        { "k": "Magnitude", "v": "M 5.4 · sig 449" },
+        { "k": "Position", "v": "3.12, 127.56" },
+        { "k": "Origin time", "v": "07-07 07:16Z" },
+        { "k": "Event ID", "v": "usgs:us6000talg" }
+      ],
+      "ground": [
+        { "lead": "No significant impact reported.", "text": "A green-alert, offshore quake in the Maluku Sea; independent catalogues log it but note no damage or casualties." },
+        { "lead": "Active region.", "text": "Part of a busy stretch of North Maluku / Halmahera seismicity — a stronger M6.2 struck Halmahera on 3 Jul." }
+      ],
+      "no_news": "Limited dedicated ground reporting — consistent with a moderate offshore event. Watching for aftershocks.",
+      "impact": [ { "label": "Casualties", "value": "None reported" }, { "label": "Depth", "value": "Deep / offshore" } ],
+      "articles": [
+        { "source": "VolcanoDiscovery", "url": "https://www.volcanodiscovery.com/earthquake/news/258427/Magnitude-54-earthquake-strikes-near-Tobelo-Kabupaten-Halmahera-Utara-North-Maluku-Indonesia.html", "title": "Magnitude 5.4 earthquake strikes near Tobelo, North Maluku, Indonesia", "published": "2026-07-07" },
+        { "source": "The Watchers", "url": "https://watchers.news/2026/07/03/strong-m6-2-earthquake-hits-halmahera-indonesia/", "title": "Strong M6.2 earthquake hits Halmahera, Indonesia", "published": "2026-07-03" }
+      ]
+    },
+    {
+      "id": "usgs:us6000tasa",
+      "hazard": "Earthquake",
+      "place": "88 km WNW of Hicks Bay, New Zealand",
+      "lat": -37.2165, "lon": 177.4292,
+      "source_url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tasa",
+      "observed_at": "2026-07-08T03:14:19Z",
+      "event_time": "2026-07-07T20:33:15Z",
+      "signal": { "mag": 4.9, "alert": "green", "sig": 371, "band": "moderate" },
+      "band": "moderate", "band_label": "Moderate", "hazard_label": "EARTHQUAKE",
+      "alert_label": "USGS alert · GREEN",
+      "title": "M 4.9 earthquake — 88 km WNW of Hicks Bay, off New Zealand's East Cape",
+      "feed_cells": [
+        { "k": "Magnitude", "v": "M 4.9 · sig 371" },
+        { "k": "Position", "v": "-37.22, 177.43" },
+        { "k": "Origin time", "v": "07-07 20:33Z" },
+        { "k": "Event ID", "v": "usgs:us6000tasa" }
+      ],
+      "ground": [
+        { "lead": "No damage reported", "text": "for this green-alert offshore event." },
+        { "lead": "Regional context.", "text": "Around the same period a separate deep <b>M5.4 off Te Kaha</b> was felt across the North Island — from the Bay of Plenty, Gisborne and Hawke's Bay to Wellington and Tauranga — mostly a gentle sway. The East Cape sits above the Hikurangi subduction zone." }
+      ],
+      "no_news": "The widely-felt shaking in the news refers to the neighbouring M5.4; no distinct ground impact tied to this M4.9.",
+      "impact": [ { "label": "Casualties", "value": "None reported" }, { "label": "Shaking", "value": "Not widely felt" } ],
+      "articles": [
+        { "source": "1News", "url": "https://www.1news.co.nz/2026/07/08/magnitude-54-earthquake-strikes-off-north-islands-east-coast/", "title": "Magnitude 5.4 earthquake strikes off North Island's east coast", "published": "2026-07-08" },
+        { "source": "Newswire", "url": "https://newswire.co.nz/2026/07/deep-magnitude-5-4-earthquake-te-kaha-north-island/", "title": "A deep magnitude 5.4 earthquake off Te Kaha is felt across the North Island", "published": "2026-07-08" },
+        { "source": "GeoNet", "url": "https://www.geonet.org.nz/earthquake", "title": "GeoNet: Quakes — Weak and above", "published": null }
+      ]
+    }
+  ]
+}

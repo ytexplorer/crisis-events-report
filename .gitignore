@@ -1,0 +1,10 @@
+# feeds.db is TRACKED on purpose — it is the cross-run memory a scheduled routine
+# commits back each run. Only the transient WAL/SHM sidecars are ignored.
+feeds.db-wal
+feeds.db-shm
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

@@ -1,0 +1,348 @@
+{#
+  Crisis Ground Report — interactive console (Jinja2 template).
+  Left: world map with a marker per event (from lat/lon). Right: event summaries with
+  casualty/impact figures. Click any event (row or marker) -> modal with the news articles.
+  All data is embedded from the SQLite store via `events_json`; the page is self-contained
+  and needs no network. Context: see docs/feeds_store.py build_context().
+#}
+{%- set severe_n   = events | selectattr('band', 'equalto', 'severe')   | list | length -%}
+{%- set serious_n  = events | selectattr('band', 'equalto', 'serious')  | list | length -%}
+{%- set moderate_n = events | selectattr('band', 'equalto', 'moderate') | list | length -%}
+<title>{{ title | default('Crisis Ground Report') }}{% if generated_at %} — {{ generated_at }}{% endif %}</title>
+<style>
+  :root {
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --bg: #e9edf1; --bg-tint: radial-gradient(1100px 560px at 82% -8%, #dfe7ec 0%, #e9edf1 55%);
+    --panel: #ffffff; --panel-2: #f4f7f9;
+    --border: rgba(15,23,42,0.10); --border-strong: rgba(15,23,42,0.20);
+    --text: #131e29; --text-muted: #52606d; --text-faint: #8493a1;
+    --accent: #0d9488; --accent-ink: #0b7d73; --accent-dim: rgba(13,148,136,0.10);
+    --shadow: 0 1px 2px rgba(15,23,42,0.06), 0 12px 34px rgba(15,23,42,0.10);
+    --sev-severe: #dc2626; --sev-serious: #ea580c; --sev-moderate: #ca8a04; --sev-minor: #6b7280;
+    /* console screen — fixed dark in both themes */
+    --screen-bg: #070a0f; --screen-bg2: #0b1017;
+    --screen-grid: rgba(126,148,168,0.09); --screen-line: rgba(126,148,168,0.20);
+    --screen-land: rgba(122,148,172,0.12); --screen-coast: rgba(150,176,200,0.42);
+    --scr-text: #d5e0ea; --scr-muted: #8698a9; --scr-border: rgba(126,148,168,0.16);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #080b10; --bg-tint: radial-gradient(1100px 580px at 84% -10%, #0e141c 0%, #080b10 58%);
+      --panel: #101720; --panel-2: #0c121a;
+      --border: rgba(148,163,184,0.14); --border-strong: rgba(148,163,184,0.28);
+      --text: #e8eef4; --text-muted: #97a6b6; --text-faint: #5f6f7f;
+      --accent: #2dd4bf; --accent-ink: #5eead4; --accent-dim: rgba(45,212,191,0.13);
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 18px 44px rgba(0,0,0,0.5);
+      --sev-severe: #f4565b; --sev-serious: #fb8a3d; --sev-moderate: #ecc34a; --sev-minor: #8896a5;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #e9edf1; --bg-tint: radial-gradient(1100px 560px at 82% -8%, #dfe7ec 0%, #e9edf1 55%);
+    --panel: #ffffff; --panel-2: #f4f7f9;
+    --border: rgba(15,23,42,0.10); --border-strong: rgba(15,23,42,0.20);
+    --text: #131e29; --text-muted: #52606d; --text-faint: #8493a1;
+    --accent: #0d9488; --accent-ink: #0b7d73; --accent-dim: rgba(13,148,136,0.10);
+    --shadow: 0 1px 2px rgba(15,23,42,0.06), 0 12px 34px rgba(15,23,42,0.10);
+    --sev-severe: #dc2626; --sev-serious: #ea580c; --sev-moderate: #ca8a04; --sev-minor: #6b7280;
+  }
+  :root[data-theme="dark"] {
+    --bg: #080b10; --bg-tint: radial-gradient(1100px 580px at 84% -10%, #0e141c 0%, #080b10 58%);
+    --panel: #101720; --panel-2: #0c121a;
+    --border: rgba(148,163,184,0.14); --border-strong: rgba(148,163,184,0.28);
+    --text: #e8eef4; --text-muted: #97a6b6; --text-faint: #5f6f7f;
+    --accent: #2dd4bf; --accent-ink: #5eead4; --accent-dim: rgba(45,212,191,0.13);
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 18px 44px rgba(0,0,0,0.5);
+    --sev-severe: #f4565b; --sev-serious: #fb8a3d; --sev-moderate: #ecc34a; --sev-minor: #8896a5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); background-image: var(--bg-tint); color: var(--text); font-family: var(--font-sans); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+  .mono { font-family: var(--font-mono); }
+  a { color: var(--accent-ink); }
+  h1,h2,h3 { margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+
+  /* masthead */
+  header.masthead { padding: 34px 0 20px; }
+  .eyebrow { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .22em; text-transform: uppercase; color: var(--accent-ink); font-weight: 600; margin: 0 0 12px; }
+  header.masthead h1 { font-size: clamp(1.7rem, 3.6vw, 2.4rem); font-weight: 800; line-height: 1.05; }
+  .provenance { font-family: var(--font-mono); font-size: .72rem; color: var(--text-faint); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 5px 16px; }
+  .tallies { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
+  .tally { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 7px 12px; box-shadow: var(--shadow); }
+  .tally .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .tally .n { font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tally .lbl { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+
+  /* console split */
+  .console { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 16px; padding-bottom: 10px; align-items: start; }
+  @media (max-width: 940px){ .console { grid-template-columns: 1fr; } }
+
+  /* map */
+  .mappane { background: linear-gradient(180deg, var(--screen-bg2), var(--screen-bg)); border: 1px solid var(--scr-border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .mappane .bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--scr-border); font-family: var(--font-mono); font-size: .72rem; color: var(--scr-muted); }
+  .mappane .bar b { color: var(--scr-text); font-weight: 600; }
+  .mapwrap { position: relative; width: 100%; aspect-ratio: 720 / 360; }
+  .mapwrap svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  .land { fill: var(--screen-land); stroke: var(--screen-coast); stroke-width: .4; stroke-linejoin: round; }
+  .scanline { position: absolute; inset: 0; pointer-events: none; opacity: .5; background: repeating-linear-gradient(180deg, transparent 0 2px, rgba(0,0,0,0.10) 2px 3px); mix-blend-mode: overlay; }
+  .legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 12px; align-items: center; font-family: var(--font-mono); font-size: .64rem; color: var(--scr-muted); background: color-mix(in srgb, var(--screen-bg) 74%, transparent); border: 1px solid var(--scr-border); border-radius: 8px; padding: 6px 10px; backdrop-filter: blur(3px); }
+  .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
+  .mk-group { cursor: pointer; }
+  .mk-group:focus-visible { outline: none; }
+  .mk-group:focus-visible .mk-core { stroke: #fff; stroke-width: 2.4; }
+
+  /* list */
+  .listpane { display: flex; flex-direction: column; min-height: 0; }
+  .list-head { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); padding: 4px 2px 12px; display: flex; justify-content: space-between; align-items: baseline; }
+  #evlist { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 72vh; padding: 2px; }
+  .evcard { text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--band); border-radius: 12px; padding: 14px 15px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 9px; transition: border-color .12s, transform .12s; }
+  .evcard:hover { transform: translateY(-1px); border-color: var(--band); }
+  .evcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .evcard.severe   { --band: var(--sev-severe); }
+  .evcard.serious  { --band: var(--sev-serious); }
+  .evcard.moderate { --band: var(--sev-moderate); }
+  .evcard.minor    { --band: var(--sev-minor); }
+  .ev-tags { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .bandtag { font-family: var(--font-mono); font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--band); background: color-mix(in srgb, var(--band) 14%, transparent); border: 1px solid var(--band); border-radius: 5px; padding: 1px 7px; }
+  .hazcode { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .09em; color: var(--text-muted); border: 1px solid var(--border-strong); border-radius: 5px; padding: 1px 6px; }
+  .ev-title { font-size: 1rem; font-weight: 700; line-height: 1.25; }
+  .ev-loc { font-family: var(--font-mono); font-size: .7rem; color: var(--text-faint); }
+  .impacts { display: flex; flex-wrap: wrap; gap: 7px; }
+  .stat { display: inline-flex; align-items: baseline; gap: 6px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; }
+  .stat .sv { font-family: var(--font-mono); font-weight: 700; font-size: .8rem; font-variant-numeric: tabular-nums; }
+  .stat .sl { font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+  .stat.deaths .sv, .stat.injured .sv { color: var(--band); }
+  .ev-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 1px; }
+  .reports { font-family: var(--font-mono); font-size: .72rem; color: var(--accent-ink); font-weight: 600; }
+  .reports.none { color: var(--text-faint); font-weight: 400; }
+
+  /* modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(6,9,13,0.62); backdrop-filter: blur(3px); display: none; align-items: flex-start; justify-content: center; padding: 6vh 18px; z-index: 100; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border-strong); border-left: 5px solid var(--band); border-radius: 16px; box-shadow: 0 24px 70px rgba(0,0,0,0.5); max-width: 640px; width: 100%; max-height: 88vh; overflow-y: auto; }
+  .modal.severe{--band:var(--sev-severe)} .modal.serious{--band:var(--sev-serious)} .modal.moderate{--band:var(--sev-moderate)} .modal.minor{--band:var(--sev-minor)}
+  .m-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); border-radius: 16px 16px 0 0; }
+  .m-head .row { display: flex; align-items: flex-start; gap: 12px; }
+  .m-head h2 { font-size: 1.2rem; font-weight: 760; line-height: 1.22; flex: 1; }
+  .m-close { flex: none; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text-muted); font-size: 1.1rem; cursor: pointer; line-height: 1; }
+  .m-close:hover { color: var(--text); border-color: var(--border-strong); }
+  .m-loc { font-family: var(--font-mono); font-size: .72rem; color: var(--text-faint); margin-top: 8px; }
+  .m-body { padding: 16px 20px 20px; }
+  .m-body .impacts { margin-bottom: 16px; }
+  .m-sec { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-ink); font-weight: 600; margin: 4px 0 10px; }
+  .m-ground { margin: 0 0 4px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .m-ground li { display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: .92rem; }
+  .m-ground li .mk { color: var(--band); font-weight: 700; }
+  .m-ground li b { font-weight: 680; }
+  .m-forecast { font-size: .86rem; color: var(--text-muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 13px; margin: 12px 0 4px; }
+  .m-forecast b { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-ink); display: block; margin-bottom: 3px; }
+  .m-nonews { font-size: .88rem; color: var(--text-muted); font-style: italic; }
+  .m-arts { display: flex; flex-direction: column; gap: 9px; margin-top: 4px; }
+  .m-art { display: block; text-decoration: none; color: inherit; border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; background: var(--panel-2); }
+  .m-art:hover { border-color: var(--accent); }
+  .m-art .src { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); font-weight: 600; }
+  .m-art .at { font-size: .92rem; font-weight: 640; margin: 3px 0; color: var(--text); }
+  .m-art .as { font-size: .82rem; color: var(--text-muted); }
+  .m-art .apub { font-family: var(--font-mono); font-size: .64rem; color: var(--text-faint); margin-top: 4px; }
+  .m-feedlink { display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: .72rem; color: var(--accent-ink); text-decoration: none; margin-top: 14px; }
+  .m-feedlink:hover { text-decoration: underline; }
+
+  footer { border-top: 1px solid var(--border); margin-top: 22px; padding: 20px 0 42px; }
+  .note { font-size: .8rem; color: var(--text-muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; }
+  .note b { color: var(--text); }
+  .foot-meta { font-family: var(--font-mono); font-size: .68rem; color: var(--text-faint); letter-spacing: .04em; margin-top: 14px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<header class="masthead">
+  <div class="wrap">
+    <p class="eyebrow">Global Crisis Dashboard · Ground Report</p>
+    <h1>{{ title | default('Events under watch') }}</h1>
+    <div class="provenance">
+      <span>◷ Generated {{ generated_at }}{% if window_end %} · window to {{ window_end }}{% endif %}</span>
+      <span>◈ Feed data: {{ feed_sources | default('USGS · GDACS') }} · SQLite store</span>
+      <span>❖ Click any event for the ground-reporting articles</span>
+    </div>
+    <div class="tallies">
+      {% if severe_n %}<span class="tally"><span class="dot" style="background:var(--sev-severe)"></span><span class="n">{{ severe_n }}</span><span class="lbl">Severe</span></span>{% endif %}
+      {% if serious_n %}<span class="tally"><span class="dot" style="background:var(--sev-serious)"></span><span class="n">{{ serious_n }}</span><span class="lbl">Serious</span></span>{% endif %}
+      {% if moderate_n %}<span class="tally"><span class="dot" style="background:var(--sev-moderate)"></span><span class="n">{{ moderate_n }}</span><span class="lbl">Moderate</span></span>{% endif %}
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="console">
+    <!-- MAP -->
+    <section class="mappane" aria-label="World map of flagged events">
+      <div class="bar"><b>Live map</b><span>·</span><span>{{ events | length }} event{{ 's' if events|length != 1 else '' }} plotted · colour = severity</span></div>
+      <div class="mapwrap">
+        <svg viewBox="0 0 720 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Equirectangular world map with event markers">
+          {% if world_path %}<path class="land" d="{{ world_path }}" />{% endif %}
+          <g id="graticule"></g>
+          <g id="markers"></g>
+        </svg>
+        <div class="scanline" aria-hidden="true"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--sev-severe)"></i>Severe</span>
+        <span><i style="background:var(--sev-serious)"></i>Serious</span>
+        <span><i style="background:var(--sev-moderate)"></i>Moderate</span>
+      </div>
+    </section>
+
+    <!-- LIST -->
+    <section class="listpane" aria-label="Event summaries">
+      <div class="list-head"><span>Events · impact summary</span><span>{{ events | length }} total</span></div>
+      <div id="evlist"></div>
+    </section>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modal" role="dialog" aria-modal="true" aria-labelledby="m-title" tabindex="-1"></div>
+
+<footer>
+  <div class="wrap">
+    <div class="note">
+      {% if footer_note %}{{ footer_note | safe }}{% else %}
+      <b>How to read this.</b> Marker position and the feed facts come from the SQLite store (USGS &amp; GDACS). Impact figures and the linked articles are from independent news reporting, cited per event — casualties, evacuations and damage are as reported and may be revised. Where no story ties to an event, that is stated rather than filled.
+      {% endif %}
+    </div>
+    <div class="foot-meta">Global Crisis Dashboard · generated {{ generated_at }} · {{ events | length }} event(s) · click an event for its cited reports.</div>
+  </div>
+</footer>
+
+<script>
+  const EVENTS = {{ events_json | default('[]') | safe }};
+  const NS = "http://www.w3.org/2000/svg";
+  const COLORS = { severe: "#f4565b", serious: "#fb8a3d", moderate: "#ecc34a", minor: "#8896a5" };
+  const W = 720, H = 360;
+  const px = lon => (lon + 180) / 360 * W;
+  const py = lat => (90 - lat) / 180 * H;
+  const el = (t, a) => { const n = document.createElementNS(NS, t); for (const k in a) n.setAttribute(k, a[k]); return n; };
+  const esc = s => (s == null ? "" : String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"));
+
+  /* ---- graticule ---- */
+  (function () {
+    const g = document.getElementById("graticule");
+    for (let lon = -150; lon <= 150; lon += 30) g.appendChild(el("line", { x1: px(lon), y1: 0, x2: px(lon), y2: H, stroke: "rgba(126,148,168,0.09)", "stroke-width": 1 }));
+    for (let lat = -60; lat <= 60; lat += 30) g.appendChild(el("line", { x1: 0, y1: py(lat), x2: W, y2: py(lat), stroke: "rgba(126,148,168,0.09)", "stroke-width": 1 }));
+    g.appendChild(el("line", { x1: 0, y1: py(0), x2: W, y2: py(0), stroke: "rgba(126,148,168,0.20)", "stroke-width": 1, "stroke-dasharray": "2 5" }));
+  })();
+
+  /* ---- markers ---- */
+  const RAD = { severe: 7, serious: 5.6, moderate: 4.4, minor: 3.4 };
+  (function () {
+    const layer = document.getElementById("markers");
+    EVENTS.forEach((e, i) => {
+      if (e.lat == null || e.lon == null) return;
+      const x = px(e.lon), y = py(e.lat), r = RAD[e.band] || 4, col = COLORS[e.band] || "#8896a5";
+      const g = el("g", { class: "mk-group", tabindex: "0", role: "button" });
+      g.setAttribute("aria-label", `${e.title} — open reports`);
+      if (e.band === "severe" || e.band === "serious") {
+        const ring = el("circle", { cx: x, cy: y, r: r, fill: "none", stroke: col, "stroke-width": 1.2, opacity: .85 });
+        ring.style.transformOrigin = `${x}px ${y}px`;
+        ring.style.animation = `ripple 2.8s ease-out ${(i % 4) * 0.5}s infinite`;
+        g.appendChild(ring);
+      }
+      g.appendChild(el("circle", { cx: x, cy: y, r: r + 3, fill: col, opacity: .15 }));
+      g.appendChild(el("circle", { class: "mk-core", cx: x, cy: y, r: r, fill: col, "fill-opacity": .3, stroke: col, "stroke-width": 1.4 }));
+      g.appendChild(el("circle", { cx: x, cy: y, r: 1.8, fill: col }));
+      const tip = el("title", {}); tip.textContent = e.title; g.appendChild(tip);
+      const open = () => openModal(e.id);
+      g.addEventListener("click", open);
+      g.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open(); } });
+      layer.appendChild(g);
+    });
+    const st = document.createElement("style");
+    st.textContent = "@keyframes ripple{0%{transform:scale(1);opacity:.8}70%{transform:scale(2.6);opacity:0}100%{opacity:0}}";
+    document.head.appendChild(st);
+  })();
+
+  /* ---- event list ---- */
+  (function () {
+    const wrap = document.getElementById("evlist");
+    EVENTS.forEach(e => {
+      const b = document.createElement("button");
+      b.className = `evcard ${e.band}`;
+      b.type = "button";
+      b.setAttribute("data-id", e.id);
+      const impacts = (e.impact || []).map(s =>
+        `<span class="stat ${(s.label||'').toLowerCase()}"><span class="sv">${esc(s.value)}</span><span class="sl">${esc(s.label)}</span></span>`).join("");
+      const nArt = (e.articles || []).length;
+      const reports = nArt ? `<span class="reports">${nArt} report${nArt !== 1 ? "s" : ""} ›</span>`
+                           : `<span class="reports none">No reports linked</span>`;
+      const loc = (e.lat != null && e.lon != null)
+        ? `${e.lat.toFixed(1)}, ${e.lon.toFixed(1)}` : (e.place || "");
+      b.innerHTML =
+        `<div class="ev-tags"><span class="bandtag">${esc(e.band_label)}</span><span class="hazcode">${esc(e.hazard_label)}</span></div>` +
+        `<div class="ev-title">${esc(e.title)}</div>` +
+        (impacts ? `<div class="impacts">${impacts}</div>` : "") +
+        `<div class="ev-foot"><span class="ev-loc">${esc(loc)}</span>${reports}</div>`;
+      b.addEventListener("click", () => openModal(e.id));
+      wrap.appendChild(b);
+    });
+  })();
+
+  /* ---- modal ---- */
+  const modal = document.getElementById("modal");
+  let lastFocus = null;
+  function openModal(id) {
+    const e = EVENTS.find(x => x.id === id);
+    if (!e) return;
+    lastFocus = document.activeElement;
+    const impacts = (e.impact || []).map(s =>
+      `<span class="stat ${(s.label||'').toLowerCase()}"><span class="sv">${esc(s.value)}</span><span class="sl">${esc(s.label)}</span></span>`).join("");
+    const ground = (e.ground || []).map(g =>
+      `<li><span class="mk">›</span><span>${g.lead ? `<b>${esc(g.lead)}</b> ` : ""}${g.text || ""}</span></li>`).join("");
+    const forecast = e.forecast ? `<div class="m-forecast"><b>${esc(e.forecast.label)}</b>${e.forecast.text || ""}</div>` : "";
+    const nonews = e.no_news ? `<p class="m-nonews">${esc(e.no_news)}</p>` : "";
+    const arts = (e.articles || []).map(a =>
+      `<a class="m-art" href="${esc(a.url)}" target="_blank" rel="noopener">` +
+      `<div class="src">${esc(a.source || "Source")}</div>` +
+      `<div class="at">${esc(a.title || a.url)}</div>` +
+      (a.summary ? `<div class="as">${esc(a.summary)}</div>` : "") +
+      (a.published ? `<div class="apub">${esc(a.published)}</div>` : "") +
+      `</a>`).join("");
+    const loc = (e.lat != null && e.lon != null)
+      ? `${e.place ? esc(e.place) + " · " : ""}${e.lat.toFixed(2)}, ${e.lon.toFixed(2)}` : esc(e.place || "");
+    const feedlink = e.feed_link ? `<a class="m-feedlink" href="${esc(e.feed_link.url)}" target="_blank" rel="noopener">↗ ${esc(e.feed_link.label)}</a>` : "";
+    modal.className = `modal-backdrop open`;
+    modal.innerHTML =
+      `<div class="modal ${e.band}" role="document">` +
+        `<div class="m-head"><div class="row"><h2 id="m-title">` +
+          `<span class="bandtag" style="margin-right:8px">${esc(e.band_label)}</span>${esc(e.title)}</h2>` +
+          `<button class="m-close" aria-label="Close">✕</button></div>` +
+          `<div class="m-loc">${loc}</div></div>` +
+        `<div class="m-body">` +
+          (impacts ? `<div class="impacts">${impacts}</div>` : "") +
+          (ground ? `<div class="m-sec">On the ground</div><ul class="m-ground">${ground}</ul>` : "") +
+          forecast + nonews +
+          (arts ? `<div class="m-sec" style="margin-top:16px">Reports (${(e.articles||[]).length})</div><div class="m-arts">${arts}</div>` : "") +
+          feedlink +
+        `</div>` +
+      `</div>`;
+    modal.querySelector(".m-close").addEventListener("click", closeModal);
+    modal.focus();
+  }
+  function closeModal() { modal.className = "modal-backdrop"; modal.innerHTML = ""; if (lastFocus) lastFocus.focus(); }
+  modal.addEventListener("click", ev => { if (ev.target === modal) closeModal(); });
+  document.addEventListener("keydown", ev => { if (ev.key === "Escape" && modal.classList.contains("open")) closeModal(); });
+
+  /* ---- keep the event list the same height as the map (desktop) so the two panes are proportional ---- */
+  function syncHeights() {
+    const mp = document.querySelector(".mappane"), list = document.getElementById("evlist"),
+          head = document.querySelector(".list-head");
+    if (!mp || !list) return;
+    if (window.innerWidth > 940) {
+      const h = mp.getBoundingClientRect().height - (head ? head.getBoundingClientRect().height : 0) - 2;
+      list.style.maxHeight = h + "px";
+    } else {
+      list.style.maxHeight = "";
+    }
+  }
+  window.addEventListener("resize", syncHeights);
+  window.addEventListener("load", syncHeights);
+  syncHeights();
+</script>
