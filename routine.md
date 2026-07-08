@@ -1,12 +1,16 @@
 # Routine prompt — scheduled `events.html` generation
 
-Paste the block below as the **prompt for a Claude Code routine session**. It runs
-autonomously in a fresh clone of this repo: fetch feeds → update SQLite memory → render →
-commit both back so the next run has memory.
+Paste the block below as the **prompt for a Claude Code routine session**. Each run starts in
+a fresh, empty environment with no repo checked out — the prompt itself clones it, fetches
+feeds → updates SQLite memory → renders → commits both back so the next run has memory.
 
-> Account/environment setup (`/web-setup`, `/schedule`, network access allowing
-> `earthquake.usgs.gov` + `www.gdacs.org`, `pip install -r requirements.txt`) is done
-> separately and is **not** part of this prompt.
+> Prerequisite: an env var `GH_TOKEN` set on the environment/routine — a GitHub token (fine-
+> grained PAT scoped to `ytexplorer/crisis-events-report`, permission **Contents: Read and
+> write**; or a classic PAT with the `repo` scope) with no branch-protection rules on `main`
+> blocking direct pushes. This repo is public, so cloning and fetching don't need it — only
+> the final push does. Network access allowing `earthquake.usgs.gov` + `www.gdacs.org` +
+> `github.com` is assumed to be configured on the environment; that part is not this prompt's
+> job.
 
 ---
 
@@ -16,7 +20,7 @@ commit both back so the next run has memory.
 You are running the disaster-feed pipeline for this repository on a schedule. Work from the
 repo root. Be deterministic and grounded; never fabricate numbers.
 
-FILES (all at repo root)
+FILES (all at repo root, once cloned)
 - feeds.db              SQLite memory — events + articles + runs; the source of record
 - feeds_store.py        store CLI: init/dump/ingest/render/prune
 - report.html.j2        Jinja template (pure presentation)
@@ -24,6 +28,13 @@ FILES (all at repo root)
 - events.html           the rendered report (output)
 
 STEPS
+0. ENSURE REPO PRESENT (the environment starts empty — nothing to skip here)
+   If feeds_store.py is not in the working directory:
+     git clone https://github.com/ytexplorer/crisis-events-report.git .
+   else:
+     git pull --ff-only origin main
+   Then: pip install -r requirements.txt
+
 1. READ MEMORY
    python feeds_store.py dump
    Use it for the trend/diff step. First run is empty (everything is NEW).
@@ -70,7 +81,11 @@ STEPS
 8. COMMIT + PUSH (so memory and report survive to the next run)
    Stage feeds.db and events.html and commit:
    "chore(feeds): scheduled run <UTC timestamp> — <N> events, <new> new / <esc> escalated"
-   then push. (feeds.db must be tracked, not gitignored, or memory resets each run.)
+   then push using GH_TOKEN explicitly (the default remote may only carry read access):
+     git push https://x-access-token:${GH_TOKEN}@github.com/ytexplorer/crisis-events-report.git HEAD:main
+   (feeds.db must be tracked, not gitignored, or memory resets each run. If push fails with
+   403, GH_TOKEN is missing/under-scoped or main has a protection rule blocking direct pushes
+   — surface that clearly in the final message rather than silently dropping the update.)
 
 9. FINAL MESSAGE — print the fixed-format text summary:
    # Disaster Flag — <current UTC>
