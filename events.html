@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ten events under watch — 2026-07-09</title>
 <style>
   :root {
@@ -67,9 +69,27 @@
   .tally .n { font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
   .tally .lbl { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
 
+  /* title row + "how to read this" info button */
+  .title-row { display: flex; align-items: flex-start; gap: 12px; }
+  .title-row h1 { flex: 1 1 auto; min-width: 0; }
+  .info { position: relative; flex: none; }
+  .infobtn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--panel); color: var(--text-muted); font-family: var(--font-mono); font-weight: 700; font-size: .98rem; font-style: italic; line-height: 1; cursor: pointer; box-shadow: var(--shadow); display: inline-flex; align-items: center; justify-content: center; transition: color .12s, border-color .12s; -webkit-tap-highlight-color: transparent; }
+  .infobtn:hover { color: var(--text); border-color: var(--accent); }
+  .infobtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .infobtn[aria-expanded="true"] { color: var(--accent-ink); border-color: var(--accent); }
+  .infopop { position: absolute; top: calc(100% + 8px); right: 0; width: min(360px, 82vw); background: var(--panel); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 14px 16px; font-size: .82rem; line-height: 1.55; color: var(--text-muted); z-index: 60; }
+  .infopop b { color: var(--text); }
+  .infopop[hidden] { display: none; }
+
   /* console split */
   .console { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 16px; padding-bottom: 10px; align-items: start; }
-  @media (max-width: 940px){ .console { grid-template-columns: 1fr; } }
+  /* mobile: single column — map on top, event feed below, no nested scroll */
+  @media (max-width: 940px){
+    .console { grid-template-columns: 1fr; gap: 18px; }
+    .mappane { order: 0; }
+    .listpane { order: 1; }
+    #evlist { max-height: none; overflow: visible; }
+  }
 
   /* map */
   .mappane { background: linear-gradient(180deg, var(--screen-bg2), var(--screen-bg)); border: 1px solid var(--scr-border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; position: relative; display: flex; flex-direction: column; }
@@ -142,16 +162,33 @@
   .m-feedlink:hover { text-decoration: underline; }
 
   footer { border-top: 1px solid var(--border); margin-top: 22px; padding: 20px 0 42px; }
-  .note { font-size: .8rem; color: var(--text-muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; }
-  .note b { color: var(--text); }
   .foot-meta { font-family: var(--font-mono); font-size: .68rem; color: var(--text-faint); letter-spacing: .04em; margin-top: 14px; }
+  @media (max-width: 600px){
+    header.masthead { padding: 24px 0 16px; }
+    .provenance { font-size: .68rem; }
+    .modal-backdrop { padding: 4vh 10px; }
+    .m-head { padding: 16px 16px 12px; }
+    .m-head h2 { font-size: 1.08rem; }
+    .m-body { padding: 14px 16px 18px; }
+    .infopop { width: min(360px, 88vw); }
+  }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 
 <header class="masthead">
   <div class="wrap">
     <p class="eyebrow">Global Crisis Dashboard · Ground Report</p>
-    <h1>Ten events under watch</h1>
+    <div class="title-row">
+      <h1>Ten events under watch</h1>
+      <div class="info">
+        <button type="button" class="infobtn" id="infobtn" aria-expanded="false" aria-controls="infopop" aria-label="How to read this report" title="How to read this">i</button>
+        <div class="infopop" id="infopop" role="region" aria-label="How to read this" hidden>
+          
+          <b>How to read this.</b> Marker position and the feed facts come from the SQLite store (USGS &amp; GDACS). Impact figures and the linked articles are from independent news reporting, cited per event — casualties, evacuations and damage are as reported and may be revised. Where no story ties to an event, that is stated rather than filled.
+          
+        </div>
+      </div>
+    </div>
     <div class="provenance">
       <span>◷ Generated 2026-07-09 · window to 10:10 GMT+8</span>
       <span>◈ Feed data: GDACS · USGS · SQLite store</span>
@@ -198,12 +235,7 @@
 
 <footer>
   <div class="wrap">
-    <div class="note">
-      
-      <b>How to read this.</b> Marker position and the feed facts come from the SQLite store (USGS &amp; GDACS). Impact figures and the linked articles are from independent news reporting, cited per event — casualties, evacuations and damage are as reported and may be revised. Where no story ties to an event, that is stated rather than filled.
-      
-    </div>
-    <div class="foot-meta">Global Crisis Dashboard · generated 2026-07-09 · 10 event(s) · click an event for its cited reports.</div>
+    <div class="foot-meta">Global Crisis Dashboard · generated 2026-07-09 · 10 event(s) · click an event for its cited reports · tap ⓘ for how to read this.</div>
   </div>
 </footer>
 
@@ -370,6 +402,16 @@
   function closeModal() { modal.className = "modal-backdrop"; modal.innerHTML = ""; if (lastFocus) lastFocus.focus(); }
   modal.addEventListener("click", ev => { if (ev.target === modal) closeModal(); });
   document.addEventListener("keydown", ev => { if (ev.key === "Escape" && modal.classList.contains("open")) closeModal(); });
+
+  /* ---- "how to read this" info popover ---- */
+  (function () {
+    const btn = document.getElementById("infobtn"), pop = document.getElementById("infopop");
+    if (!btn || !pop) return;
+    const setOpen = open => { pop.hidden = !open; btn.setAttribute("aria-expanded", String(open)); };
+    btn.addEventListener("click", ev => { ev.stopPropagation(); setOpen(pop.hidden); });
+    document.addEventListener("click", ev => { if (!pop.hidden && !pop.contains(ev.target) && ev.target !== btn) setOpen(false); });
+    document.addEventListener("keydown", ev => { if (ev.key === "Escape" && !pop.hidden) { setOpen(false); btn.focus(); } });
+  })();
 
   /* ---- keep the event list the same height as the map (desktop) so the two panes are proportional ---- */
   function syncHeights() {
