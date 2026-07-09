@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>crisis-events-report — an autonomous, grounded disaster desk</title>
+<meta name="description" content="An autonomous disaster desk that pulls live USGS + GDACS feeds, attaches cited ground reporting, reconciles the numbers it can't verify, and remembers what changed since the last run — rendered as one fixed-format report.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#07090C;
+    --void-2:#0A0E13;
+    --panel:#0E141B;
+    --panel-2:#121A22;
+    --line:#1C2733;
+    --line-2:#26333F;
+    --ink:#E6EDF3;
+    --mute:#7D8B99;
+    --mute-2:#586675;
+    --signal:#4FE3C1;
+    --signal-dim:#2A8C7A;
+    --severe:#FF5A5F;
+    --serious:#FF9F43;
+    --moderate:#FFD24A;
+    --maxw:1120px;
+    --gutter:clamp(20px,5vw,64px);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--void);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    font-size:17px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  ::selection{background:var(--signal);color:var(--void)}
+  a{color:inherit;text-decoration:none}
+  img{max-width:100%;display:block}
+
+  /* ---- shared type utilities ---- */
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:12px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--mute);
+    display:inline-flex;
+    align-items:center;
+    gap:.6em;
+  }
+  .eyebrow::before{
+    content:"";
+    width:22px;height:1px;background:var(--signal);
+    display:inline-block;
+  }
+  h1,h2,h3{font-family:"Space Grotesk",sans-serif;font-weight:700;line-height:1.05;letter-spacing:-.02em}
+
+  /* ---- layout shell + coordinate rail (signature) ---- */
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--gutter);position:relative}
+
+  .rail{
+    position:fixed;
+    top:0;left:0;
+    height:100%;
+    width:max(var(--gutter),calc((100vw - var(--maxw))/2 + var(--gutter)));
+    border-right:1px solid var(--line);
+    pointer-events:none;
+    z-index:1;
+    display:none;
+  }
+  .rail::before{
+    /* latitude tick marks */
+    content:"";
+    position:absolute;right:-1px;top:0;bottom:0;width:9px;
+    background-image:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px 56px);
+  }
+  .rail span{
+    position:absolute;right:18px;
+    font-family:"IBM Plex Mono",monospace;
+    font-size:10px;letter-spacing:.15em;color:var(--mute-2);
+    transform:translateY(-50%);
+  }
+  .rail span:nth-child(1){top:12%}
+  .rail span:nth-child(2){top:31%}
+  .rail span:nth-child(3){top:50%;color:var(--signal-dim)}
+  .rail span:nth-child(4){top:69%}
+  .rail span:nth-child(5){top:88%}
+  @media(min-width:1180px){.rail{display:block}}
+
+  /* ---- top nav ---- */
+  nav{
+    position:sticky;top:0;z-index:40;
+    backdrop-filter:blur(10px);
+    background:color-mix(in srgb,var(--void) 78%,transparent);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-in{
+    max-width:var(--maxw);margin:0 auto;padding:14px var(--gutter);
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:500;letter-spacing:.04em;white-space:nowrap}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--severe);box-shadow:0 0 0 0 var(--severe);animation:pulse 2.6s infinite}
+  .brand b{color:var(--ink);font-weight:600}
+  .brand .slash{color:var(--mute-2)}
+  .nav-links{display:flex;align-items:center;gap:8px}
+  .nav-links a{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--mute);padding:8px 12px;border-radius:7px;transition:color .18s,background .18s}
+  .nav-links a:hover{color:var(--ink);background:var(--panel)}
+  .nav-links a.cta{color:var(--void);background:var(--signal);font-weight:600}
+  .nav-links a.cta:hover{background:#6EEAD0}
+  @media(max-width:620px){.nav-links a.ghost,.nav-links a.gh{display:none}.brand{font-size:12.5px}.nav-in{padding-left:16px;padding-right:16px}.nav-links a{padding:8px 10px}}
+
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--severe) 55%,transparent)}70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  /* ---- section rhythm ---- */
+  section{position:relative;z-index:2}
+  .sec-head{max-width:720px}
+  .sec-head h2{font-size:clamp(28px,4.4vw,44px);margin:18px 0 14px}
+  .sec-head p{color:var(--mute);font-size:clamp(16px,2vw,19px);max-width:60ch}
+
+  /* ---- HERO ---- */
+  .hero{padding:clamp(56px,11vh,120px) 0 clamp(48px,7vw,84px)}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(32px,5vw,64px);align-items:center}
+  @media(max-width:940px){.hero-grid{grid-template-columns:1fr;gap:40px}}
+  .hero h1{
+    font-size:clamp(42px,7.4vw,86px);
+    margin:22px 0;
+    letter-spacing:-.03em;
+  }
+  .hero h1 .tint{color:var(--signal)}
+  .hero .lede{font-size:clamp(17px,2.2vw,21px);color:#B7C3CE;max-width:38ch}
+  .hero .lede b{color:var(--ink);font-weight:600}
+  .cta-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:34px}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;
+    font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:500;
+    padding:14px 22px;border-radius:9px;border:1px solid transparent;
+    transition:transform .16s,background .18s,border-color .18s;
+  }
+  .btn:hover{transform:translateY(-2px)}
+  .btn-primary{background:var(--signal);color:var(--void);font-weight:600}
+  .btn-primary:hover{background:#6EEAD0}
+  .btn-ghost{border-color:var(--line-2);color:var(--ink)}
+  .btn-ghost:hover{border-color:var(--signal);background:var(--panel)}
+  .btn .arw{transition:transform .18s}
+  .btn:hover .arw{transform:translate(3px,-3px)}
+
+  .hero-meta{display:flex;gap:26px;flex-wrap:wrap;margin-top:38px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--mute)}
+  .hero-meta div span{color:var(--ink);display:block;font-size:20px;font-weight:600;letter-spacing:.02em}
+
+  /* ---- hero artifact: a grounded event card ---- */
+  .card{
+    background:linear-gradient(180deg,var(--panel) 0%,var(--void-2) 100%);
+    border:1px solid var(--line);border-radius:14px;
+    padding:22px 22px 20px;position:relative;overflow:hidden;
+    box-shadow:0 30px 80px -40px rgba(0,0,0,.9);
+  }
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--severe)}
+  .card .tags{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;padding:4px 9px;border-radius:5px;border:1px solid var(--line-2);color:var(--mute)}
+  .tag.sev{color:var(--severe);border-color:color-mix(in srgb,var(--severe) 45%,transparent);background:color-mix(in srgb,var(--severe) 12%,transparent)}
+  .card h3{font-size:20px;line-height:1.2;letter-spacing:-.01em}
+  .card .loc{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--mute-2);margin:8px 0 16px}
+  .stat{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:9px;background:var(--void)}
+  .stat .v{font-family:"IBM Plex Mono",monospace;font-size:13.5px}
+  .stat .k{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;color:var(--mute-2);text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .stat.flag .v{color:var(--severe)}
+  .recon{margin-top:14px;border-radius:8px;border:1px dashed var(--signal-dim);background:color-mix(in srgb,var(--signal) 6%,transparent);padding:13px 14px}
+  .recon .lbl{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.16em;color:var(--signal);text-transform:uppercase;display:block;margin-bottom:6px}
+  .recon p{font-size:13.5px;color:#C6D2DC;line-height:1.5}
+  .recon p mark{background:none;color:var(--signal);font-weight:600}
+  .card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--mute)}
+  .card .foot .reports{color:var(--signal)}
+
+  /* ---- showcase ---- */
+  .showcase{padding:clamp(40px,7vw,80px) 0}
+  .frame{
+    margin-top:38px;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    background:var(--panel);box-shadow:0 40px 100px -50px rgba(0,0,0,.95);
+  }
+  .frame .bar{display:flex;align-items:center;gap:7px;padding:11px 15px;border-bottom:1px solid var(--line);background:var(--void-2)}
+  .frame .bar i{width:10px;height:10px;border-radius:50%;background:var(--line-2);display:inline-block}
+  .frame .bar .url{margin-left:12px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--mute)}
+  .frame img{width:100%}
+  .cap{margin-top:14px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--mute)}
+
+  /* ---- grounding (two-up) ---- */
+  .ground{padding:clamp(56px,9vw,110px) 0}
+  .ground-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(30px,5vw,60px);align-items:center;margin-top:40px}
+  @media(max-width:940px){.ground-grid{grid-template-columns:1fr;gap:34px}}
+  .rules{list-style:none;display:grid;gap:2px}
+  .rules li{padding:16px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start}
+  .rules li:last-child{border-bottom:1px solid var(--line)}
+  .rules .mk{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--signal);padding-top:3px;white-space:nowrap}
+  .rules b{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:16px;display:block;margin-bottom:3px}
+  .rules span.d{color:var(--mute);font-size:14.5px}
+  .ground-shot{border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 40px 100px -55px rgba(0,0,0,.95)}
+
+  /* ---- pipeline (real sequence → numbered) ---- */
+  .pipe{padding:clamp(56px,9vw,110px) 0}
+  .steps{margin-top:44px;display:grid;gap:0}
+  .step{
+    display:grid;grid-template-columns:76px 1fr;gap:24px;
+    padding:26px 0;border-top:1px solid var(--line);position:relative;
+  }
+  .step:last-child{border-bottom:1px solid var(--line)}
+  .step .no{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--mute-2);letter-spacing:.1em}
+  .step .no b{color:var(--signal);font-size:26px;display:block;font-weight:600;line-height:1}
+  .step h3{font-size:20px;margin-bottom:7px}
+  .step p{color:var(--mute);font-size:15.5px;max-width:62ch}
+  .step p code{font-family:"IBM Plex Mono",monospace;font-size:13px;background:var(--panel);border:1px solid var(--line);padding:1px 6px;border-radius:5px;color:#C6D2DC}
+  @media(max-width:600px){.step{grid-template-columns:52px 1fr;gap:16px}}
+
+  /* ---- operator / repo-as-brain ---- */
+  .operator{padding:clamp(56px,9vw,110px) 0}
+  .op-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(30px,5vw,60px);align-items:center;margin-top:40px}
+  @media(max-width:940px){.op-grid{grid-template-columns:1fr;gap:38px}}
+  .op-copy p{color:var(--mute);font-size:16px;margin-bottom:18px;max-width:52ch}
+  .op-copy p b{color:var(--ink);font-weight:600}
+  .op-copy .tint{color:var(--signal)}
+  .op-facts{display:flex;gap:26px;flex-wrap:wrap;margin-top:26px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--mute)}
+  .op-facts div span{display:block;color:var(--signal);font-size:15px;font-weight:600;margin-top:3px}
+
+  .mem{background:linear-gradient(180deg,var(--panel) 0%,var(--void-2) 100%);border:1px solid var(--line);border-radius:14px;padding:20px 22px 22px;box-shadow:0 30px 80px -45px rgba(0,0,0,.9)}
+  .mem-hd{display:flex;justify-content:space-between;align-items:baseline;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;color:var(--mute-2);text-transform:uppercase;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:6px}
+  .mem-hd .ev{color:var(--ink)}
+  .run-item{display:grid;grid-template-columns:76px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--line);position:relative}
+  .run-item:last-child{border-bottom:none;padding-bottom:2px}
+  .run-item .when{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--mute)}
+  .run-item .state{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;padding:2px 7px;border-radius:4px;margin-bottom:6px;border:1px solid var(--line-2);color:var(--mute)}
+  .run-item .state.new{color:var(--signal);border-color:var(--signal-dim)}
+  .run-item .state.esc{color:var(--severe);border-color:color-mix(in srgb,var(--severe) 45%,transparent)}
+  .run-item .state.de{color:var(--serious);border-color:color-mix(in srgb,var(--serious) 45%,transparent)}
+  .run-item .line{font-size:14.5px;color:#C6D2DC;line-height:1.5}
+  .run-item .line mark{background:none;color:var(--signal);font-weight:600}
+  .run-item .peakbar{margin-top:9px;height:4px;border-radius:3px;background:var(--line);position:relative;overflow:hidden}
+  .run-item .peakbar i{position:absolute;top:0;left:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,var(--serious),var(--severe))}
+
+  /* ---- capabilities grid ---- */
+  .caps{padding:clamp(40px,7vw,80px) 0 clamp(56px,9vw,110px)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+  @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .cap{
+    border:1px solid var(--line);border-radius:12px;padding:24px 22px 26px;
+    background:linear-gradient(180deg,var(--panel) 0%,var(--void-2) 100%);
+    position:relative;overflow:hidden;transition:border-color .2s,transform .2s;
+    margin-top:0;font-family:inherit;font-size:inherit;color:inherit;
+  }
+  .cap:hover{border-color:var(--line-2);transform:translateY(-3px)}
+  .cap .ic{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.1em;color:var(--signal);margin-bottom:16px;display:block}
+  .cap h3{font-size:18px;margin-bottom:9px}
+  .cap p{color:var(--mute);font-size:14.5px;line-height:1.55}
+  .cap.severe{border-top:2px solid var(--severe)}
+  .cap.serious{border-top:2px solid var(--serious)}
+  .cap.moderate{border-top:2px solid var(--moderate)}
+  .cap.signal-top{border-top:2px solid var(--signal)}
+
+  /* ---- run-it / stack ---- */
+  .run{padding:clamp(40px,7vw,80px) 0}
+  .run-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:clamp(30px,5vw,56px);align-items:center;margin-top:8px}
+  @media(max-width:900px){.run-grid{grid-template-columns:1fr;gap:30px}}
+  .term{background:#05070A;border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 30px 80px -50px rgba(0,0,0,.9)}
+  .term .bar{display:flex;gap:7px;padding:11px 15px;border-bottom:1px solid var(--line);background:var(--void-2);align-items:center}
+  .term .bar i{width:10px;height:10px;border-radius:50%;background:var(--line-2)}
+  .term .bar .t{margin-left:10px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--mute-2)}
+  .term pre{padding:20px;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.85;color:#C6D2DC;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+  .term pre::-webkit-scrollbar{height:7px}
+  .term pre::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px}
+  .term pre::-webkit-scrollbar-track{background:transparent}
+  .term .c-com{color:var(--mute-2)}
+  .term .c-cmd{color:var(--ink)}
+  .term .c-tok{color:var(--signal)}
+  .term .c-out{color:var(--serious)}
+  .stack-list{list-style:none;display:grid;gap:14px;margin-top:26px}
+  .stack-list li{display:grid;grid-template-columns:120px 1fr;gap:14px;font-size:15px;align-items:baseline}
+  .stack-list .l{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.08em;color:var(--mute);text-transform:uppercase}
+  .stack-list .r{color:#C6D2DC}
+  .stack-list .r b{color:var(--ink);font-weight:600}
+
+  /* ---- final CTA ---- */
+  .final{padding:clamp(64px,11vw,140px) 0;text-align:center}
+  .final h2{font-size:clamp(32px,6vw,64px);letter-spacing:-.03em;max-width:16ch;margin:0 auto 22px}
+  .final p{color:var(--mute);max-width:52ch;margin:0 auto 34px;font-size:18px}
+  .final .cta-row{justify-content:center}
+
+  footer{border-top:1px solid var(--line);padding:34px 0 46px}
+  .foot-in{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--mute-2)}
+  .foot-in a{color:var(--mute)}
+  .foot-in a:hover{color:var(--signal)}
+  .legend{display:flex;gap:16px;align-items:center}
+  .legend i{display:inline-flex;align-items:center;gap:6px}
+  .legend b{width:8px;height:8px;border-radius:50%}
+
+  /* ---- reveal on scroll ---- */
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){
+    .reveal{opacity:1;transform:none;transition:none}
+    .brand .dot{animation:none}
+    .btn:hover,.cap:hover,.frame,.card{transform:none}
+    *{scroll-behavior:auto!important}
+  }
+  :focus-visible{outline:2px solid var(--signal);outline-offset:3px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<div class="rail" aria-hidden="true">
+  <span>+60°</span><span>+30°</span><span>0°</span><span>−30°</span><span>−60°</span>
+</div>
+
+<nav>
+  <div class="nav-in">
+    <a class="brand" href="#top"><span class="dot"></span><b>crisis-events-report</b></a>
+    <div class="nav-links">
+      <a class="ghost" href="#how">How it works</a>
+      <a class="ghost" href="#grounding">Grounding</a>
+      <a class="gh" href="https://github.com/ytexplorer/crisis-events-report" target="_blank" rel="noopener">GitHub ↗</a>
+      <a class="cta" href="https://raw.githack.com/ytexplorer/crisis-events-report/main/events.html" target="_blank" rel="noopener">Live report ↗</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow">Autonomous ground report</span>
+          <h1>The world's crises,<br><span class="tint">grounded.</span></h1>
+          <p class="lede">A self-running disaster desk that pulls live <b>USGS</b> &amp; <b>GDACS</b> feeds, attaches <b>cited</b> ground reporting, reconciles the numbers it can't verify, and remembers what changed since the last run — rendered as one fixed-format report.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="https://raw.githack.com/ytexplorer/crisis-events-report/main/events.html" target="_blank" rel="noopener">View the live report <span class="arw">↗</span></a>
+            <a class="btn btn-ghost" href="https://github.com/ytexplorer/crisis-events-report" target="_blank" rel="noopener">Clone on GitHub <span class="arw">↗</span></a>
+          </div>
+          <div class="hero-meta">
+            <div>Feeds<span>USGS · GDACS</span></div>
+            <div>Memory<span>SQLite</span></div>
+            <div>Dependencies<span>Python + Jinja2</span></div>
+            <div>API keys<span>0</span></div>
+          </div>
+        </div>
+
+        <!-- hero artifact: a real grounded event card -->
+        <div>
+          <div class="card" role="img" aria-label="Example grounded event card for Super Typhoon Bavi showing an uncertainty reconciliation note">
+            <div class="tags"><span class="tag sev">● SEVERE</span><span class="tag">TROPICAL CYCLONE</span></div>
+            <h3>Super Typhoon Bavi — weakened from peak, approaching Taiwan / Fujian</h3>
+            <div class="loc">◷ 18.3, 129.9 · Guam · N. Mariana Is. · Taiwan · China</div>
+            <div class="stat flag"><span class="v">None reported (Bavi-attributed)</span><span class="k">Deaths</span></div>
+            <div class="stat"><span class="v">~198–230 km/h, down from ~285–290 peak</span><span class="k">Winds</span></div>
+            <div class="recon">
+              <span class="lbl">↺ Sources not reconciled</span>
+              <p>GDACS still lists <mark>287 km/h</mark> — the 5–6 Jul peak near Rota, not a re-intensification. Outlets (TVBS, Global Times, Weathernews) report current sustained winds of <mark>~198–230 km/h</mark>. <b>The two figures are stated, not merged.</b></p>
+            </div>
+            <div class="foot"><span>ONGOING since 2026-07-08</span><span class="reports">27 cited reports ›</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SHOWCASE -->
+  <section class="showcase reveal">
+    <div class="wrap">
+      <span class="eyebrow">The report</span>
+      <div class="sec-head"><h2>One screen. The whole planet under watch.</h2>
+      <p>A world map colour-coded by severity, an impact summary per event, and every claim one click from its cited sources. Same fixed format on every run — nothing improvised.</p></div>
+      <div class="frame">
+        <div class="bar"><i></i><i></i><i></i><span class="url">events.html — generated 2026-07-09 · 10 events</span></div>
+        <img src="assets/dashboard.png" alt="The generated report: a dark world map with severity-coloured event markers on the left, and a scrollable column of event impact-summary cards on the right." loading="lazy">
+      </div>
+      <p class="cap">// Live map · 10 events plotted · colour = severity · click a tally to filter</p>
+    </div>
+  </section>
+
+  <!-- GROUNDING -->
+  <section class="ground reveal" id="grounding">
+    <div class="wrap">
+      <span class="eyebrow">Why it's different</span>
+      <div class="sec-head"><h2>Every claim carries its receipts.</h2>
+      <p>Most dashboards smooth over the messy parts. This one shows its work: where a number came from, and where the sources disagree.</p></div>
+      <div class="ground-grid">
+        <ul class="rules">
+          <li><span class="mk">FEED</span><div><b>Feed facts come from feeds</b><span class="d">Magnitude, alert level, coordinates, timing — read straight from USGS &amp; GDACS.</span></div></li>
+          <li><span class="mk">DB</span><div><b>Historical claims come from memory</b><span class="d">Trend, first-flagged date and escalation history are read from the SQLite store — never guessed.</span></div></li>
+          <li><span class="mk">NEWS</span><div><b>News claims come from cited articles</b><span class="d">Casualties, evacuations, damage — each attributed to a named, linked source in the modal.</span></div></li>
+          <li><span class="mk">?</span><div><b>Uncertainty is stated, not hidden</b><span class="d">Population, damage and casualty figures are never invented; conflicting sources are shown side by side, unreconciled.</span></div></li>
+        </ul>
+        <div class="ground-shot">
+          <img src="assets/report-modal.png" alt="An expanded event modal for Super Typhoon Bavi with an 'On the ground' section of sourced bullet points, explicitly noting where GDACS and news wind-speed figures diverge." loading="lazy">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE -->
+  <section class="pipe reveal" id="how">
+    <div class="wrap">
+      <span class="eyebrow">The pipeline · runs unattended</span>
+      <div class="sec-head"><h2>Fetch, reconcile, remember, render.</h2>
+      <p>Paste one prompt into a scheduled Claude Code routine. Each run starts empty, clones the repo, and commits its updated memory back — so the next run knows what changed.</p></div>
+      <div class="steps">
+        <div class="step"><div class="no">STEP<b>01</b></div><div><h3>Read memory</h3><p>Dump the prior <code>feeds.db</code> so the run can diff against what it already knew. First run is empty — everything is NEW.</p></div></div>
+        <div class="step"><div class="no">STEP<b>02</b></div><div><h3>Fetch public feeds</h3><p>Pull <code>all_day.geojson</code> from USGS and the GDACS event list — public, keyless. If one feed fails, it's marked degraded and the run continues.</p></div></div>
+        <div class="step"><div class="no">STEP<b>03</b></div><div><h3>Select &amp; band</h3><p>Deterministic thresholds flag key events and sort them into <b style="color:var(--severe)">severe</b> · <b style="color:var(--serious)">serious</b> · <b style="color:var(--moderate)">moderate</b> — the same rule every run.</p></div></div>
+        <div class="step"><div class="no">STEP<b>04</b></div><div><h3>Deduplicate across feeds</h3><p>A single quake often appears in both USGS and GDACS under different ids. Judgment collapses those into one event, merging conservatively and keeping every source.</p></div></div>
+        <div class="step"><div class="no">STEP<b>05</b></div><div><h3>Attach cited ground reporting</h3><p>Grounded news is fetched per event and stored as attributed articles — the "on the ground" narrative, with its receipts.</p></div></div>
+        <div class="step"><div class="no">STEP<b>06</b></div><div><h3>Ingest, render, commit</h3><p><code>ingest</code> the payload, <code>render</code> the Jinja template to <code>events.html</code>, <code>prune</code> stale events, and push <code>feeds.db</code> + the report back to the repo.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPERATOR / REPO-AS-BRAIN -->
+  <section class="operator reveal">
+    <div class="wrap">
+      <span class="eyebrow">Operated by Claude Code</span>
+      <div class="sec-head"><h2>Run by an agent.<br>Remembered by the repo.</h2>
+      <p>There's no back-end to babysit. A scheduled <b>Claude Code routine</b> is the operator — it wakes up on its own and treats this repository as its brain.</p></div>
+      <div class="op-grid">
+        <div class="op-copy">
+          <p>Each run clones the repo, reads the prior <span class="tint">SQLite memory</span>, fetches the feeds, and commits the updated store and report back — so the next run picks up exactly where this one left off. <b>The repo is the memory: SQLite for the structured facts, git history as the journal.</b></p>
+          <p>That's why an event never resets to zero. The desk knows when it was <b>first flagged</b>, its <b>peak band</b>, how many runs it has been <b>seen</b> in, and whether it has escalated, eased, or simply <b>held</b> since — and folds that history back into every summary. Read one report and you're reading everything the desk has learned about that event, not just today's snapshot.</p>
+          <div class="op-facts">
+            <div>Operator<span>Claude Code routine</span></div>
+            <div>Brain<span>this repo</span></div>
+            <div>Memory<span>SQLite + git</span></div>
+          </div>
+        </div>
+        <div class="mem" aria-label="Real store history for Super Typhoon Bavi across successive scheduled runs">
+          <div class="mem-hd"><span class="ev">◈ SUPER TYPHOON BAVI</span><span>first flagged 08 Jul · seen 19×</span></div>
+          <div class="run-item">
+            <div class="when">08 Jul<br>run 1</div>
+            <div><span class="state">NEW · FLAGGED</span>
+              <div class="line">Picked up from a GDACS <mark>Red alert</mark> → banded SEVERE at 18.3, 129.9.</div>
+              <div class="peakbar"><i style="width:100%"></i></div>
+            </div>
+          </div>
+          <div class="run-item">
+            <div class="when">08–09 Jul<br>19 runs</div>
+            <div><span class="state esc">ONGOING · SEVERE</span>
+              <div class="line">Severe band held on every run — the store recorded <mark>zero escalations</mark> and never lost the event.</div>
+              <div class="peakbar"><i style="width:100%"></i></div>
+            </div>
+          </div>
+          <div class="run-item">
+            <div class="when">09 Jul<br>latest</div>
+            <div><span class="state new">SOURCES NOT RECONCILED</span>
+              <div class="line">News reports winds eased to <mark>~198–230 km/h</mark> from the 5–6 Jul peak (~285–290); GDACS still lists the peak. Both kept, unmerged — the store doesn't pick a winner.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAPABILITIES -->
+  <section class="caps reveal">
+    <div class="wrap">
+      <span class="eyebrow">Built in</span>
+      <div class="sec-head"><h2>What's under the hood.</h2></div>
+      <div class="grid">
+        <div class="cap severe"><span class="ic">// MEMORY</span><h3>Knows what changed</h3><p>Every event carries NEW · ONGOING · ESCALATED · DE-ESCALATED · REVISED state, plus new / escalated / cleared counts per run — because the store persists between runs.</p></div>
+        <div class="cap serious"><span class="ic">// MULTI-HAZARD</span><h3>Earthquakes to cyclones</h3><p>Quakes, tropical cyclones, floods and wildfires on one map, each with a hazard label and severity band drawn from the same deterministic rules.</p></div>
+        <div class="cap moderate"><span class="ic">// AFTERSHOCK</span><h3>Spots related events</h3><p>An event within ~150 km and 14 days of a prior serious+ event of the same hazard is flagged as an aftershock or related — not treated as brand new.</p></div>
+        <div class="cap signal-top"><span class="ic">// DEDUP</span><h3>One event, many feeds</h3><p>Cross-feed judgment collapses the same real-world event reported under different ids, unions the articles, and keeps the highest band.</p></div>
+        <div class="cap signal-top"><span class="ic">// DETERMINISTIC</span><h3>Same format, every run</h3><p>A pure Jinja template does all presentation, so the report never drifts. What changes is the data — never the shape.</p></div>
+        <div class="cap signal-top"><span class="ic">// RESPONSIVE</span><h3>Reads on any screen</h3><p>Map, feed console and event modals reflow from desktop down to mobile, with a built-in "how to read this" explainer.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RUN IT -->
+  <section class="run reveal">
+    <div class="wrap">
+      <span class="eyebrow">Run it yourself</span>
+      <div class="sec-head"><h2>No keys. No services. One file of code.</h2></div>
+      <div class="run-grid">
+        <div>
+          <ul class="stack-list">
+            <li><span class="l">Runtime</span><span class="r"><b>Python 3.12 + Jinja2</b> — and nothing else</span></li>
+            <li><span class="l">Feeds</span><span class="r"><b>Public &amp; keyless</b> — USGS + GDACS</span></li>
+            <li><span class="l">Store</span><span class="r"><b>A single SQLite file</b>, tracked in git as the source of record</span></li>
+            <li><span class="l">Code</span><span class="r"><b>One CLI</b> — <span class="mono">init · dump · ingest · render · prune</span></span></li>
+            <li><span class="l">Output</span><span class="r">A self-contained <b>events.html</b>, committed so the latest render is always viewable</span></li>
+          </ul>
+        </div>
+        <div class="term" aria-label="Terminal example of generating the report">
+          <div class="bar"><i></i><i></i><i></i><span class="t">bash — reproduce the baseline</span></div>
+<pre><span class="c-com"># install (nothing but Jinja2)</span>
+<span class="c-cmd">$ pip install -r requirements.txt</span>
+
+<span class="c-com"># ingest the seed payload &amp; render</span>
+<span class="c-cmd">$ python feeds_store.py <span class="c-tok">ingest</span> --json report.seed.example.json</span>
+<span class="c-out">ingested 5 event(s), 18 article link(s)</span>
+<span class="c-cmd">$ python feeds_store.py <span class="c-tok">render</span></span>
+<span class="c-out">rendered 5 event(s) -> events.html</span>
+
+<span class="c-com"># open it in a browser — done.</span>
+</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final reveal">
+    <div class="wrap">
+      <h2>See what's under watch right now.</h2>
+      <p>The report regenerates on a schedule and commits itself back. Open the latest render, or clone it and point it at your own routine.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://raw.githack.com/ytexplorer/crisis-events-report/main/events.html" target="_blank" rel="noopener">View the live report <span class="arw">↗</span></a>
+        <a class="btn btn-ghost" href="https://github.com/ytexplorer/crisis-events-report" target="_blank" rel="noopener">Clone on GitHub <span class="arw">↗</span></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <span>crisis-events-report · public feeds → SQLite memory → events.html</span>
+    <div class="legend">
+      <i><b style="background:var(--severe)"></b>Severe</i>
+      <i><b style="background:var(--serious)"></b>Serious</i>
+      <i><b style="background:var(--moderate)"></b>Moderate</i>
+    </div>
+    <a href="https://github.com/ytexplorer/crisis-events-report" target="_blank" rel="noopener">github.com/ytexplorer/crisis-events-report ↗</a>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+    },{threshold:.12,rootMargin:"0px 0px -8% 0px"});
+    document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
+  })();
+</script>
+</body>
+</html>
