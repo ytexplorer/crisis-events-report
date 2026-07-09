@@ -8,3 +8,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Session-runtime lock artifacts (not repo content)
+.claude/scheduled_tasks.lock
