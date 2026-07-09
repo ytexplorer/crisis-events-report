@@ -90,6 +90,15 @@
     .listpane { order: 1; }
     #evlist { max-height: none; overflow: visible; }
   }
+  /* desktop: map and feed stretch to fill the viewport (header/footer excluded), no dead space below */
+  @media (min-width: 941px){
+    body { height: 100vh; display: flex; flex-direction: column; }
+    footer { flex: none; }
+    .main-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+    .console { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr); align-items: stretch; min-height: 0; }
+    .mapwrap { aspect-ratio: auto; flex: 1 1 auto; min-height: 0; }
+    #evlist { flex: 1 1 auto; min-height: 0; max-height: none; }
+  }
 
   /* map */
   .mappane { background: linear-gradient(180deg, var(--screen-bg2), var(--screen-bg)); border: 1px solid var(--scr-border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; position: relative; display: flex; flex-direction: column; }
@@ -202,7 +211,7 @@
   </div>
 </header>
 
-<div class="wrap">
+<div class="wrap main-wrap">
   <div class="console">
     <!-- MAP -->
     <section class="mappane" aria-label="World map of flagged events">
@@ -413,19 +422,5 @@
     document.addEventListener("keydown", ev => { if (ev.key === "Escape" && !pop.hidden) { setOpen(false); btn.focus(); } });
   })();
 
-  /* ---- keep the event list the same height as the map (desktop) so the two panes are proportional ---- */
-  function syncHeights() {
-    const mp = document.querySelector(".mappane"), list = document.getElementById("evlist"),
-          head = document.querySelector(".list-head");
-    if (!mp || !list) return;
-    if (window.innerWidth > 940) {
-      const h = mp.getBoundingClientRect().height - (head ? head.getBoundingClientRect().height : 0) - 2;
-      list.style.maxHeight = h + "px";
-    } else {
-      list.style.maxHeight = "";
-    }
-  }
-  window.addEventListener("resize", syncHeights);
-  window.addEventListener("load", syncHeights);
-  syncHeights();
+  /* map and feed panes now stretch to fill the viewport via CSS flex/grid — no JS sync needed */
 </script>
